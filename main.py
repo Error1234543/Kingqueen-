@@ -583,18 +583,25 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # Sare handlers ek hi line se shuru hone chahiye (left margin se same distance par)
     app.add_handler(CommandHandler("start",       cmd_start))
     app.add_handler(CommandHandler("help",        cmd_help))
     app.add_handler(CommandHandler("startgame",   cmd_startgame))
     app.add_handler(CommandHandler("join",        cmd_join))
+    app.add_handler(CommandHandler("reset",       cmd_reset))      # <--- Ye line add karni hai
     app.add_handler(CommandHandler("leaderboard", cmd_leaderboard))
     app.add_handler(CommandHandler("myscore",     cmd_myscore))
-    app.add_handler(CommandHandler("reset",       cmd_reset))  # Ye reset wali line yahan check karein
 
     app.add_handler(CallbackQueryHandler(cb_check_join, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(cb_show_help,  pattern="^show_help$"))
     app.add_handler(CallbackQueryHandler(cb_join,       pattern="^join_game$"))
     app.add_handler(CallbackQueryHandler(cb_guess,      pattern=r"^guess_-?\d+_\d+$"))
 
-    # ... baki ka code
+    webhook_url = WEBHOOK_URL.rstrip("/")
+    log.info(f"Webhook: {webhook_url}/webhook")
+
+    app.run_webhook(
+        listen="0.0.0.0",
+        port=PORT,
+        webhook_url=f"{webhook_url}/webhook",
+        url_path="webhook",
+    )
