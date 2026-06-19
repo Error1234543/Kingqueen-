@@ -13,7 +13,7 @@ import sqlite3
 import os
 import logging
 from dotenv import load_dotenv
-from pyrogram import Client, filters, idle
+from pyrogram import Client, filters
 from pyrogram.types import (
     Message, InlineKeyboardMarkup,
     InlineKeyboardButton, CallbackQuery
