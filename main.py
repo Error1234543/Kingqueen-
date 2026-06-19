@@ -20,6 +20,7 @@ from pyrogram.types import (
 )
 from pyrogram.enums import ChatType
 from pyrogram.errors import FloodWait
+from aiohttp import web
 
 # ──────────────────────────────────────────────
 #  Logging
@@ -577,9 +578,30 @@ async def cmd_myscore(_, msg: Message):
     )
 
 # ──────────────────────────────────────────────
-#  Run
+#  Health check server (Render Web Service)
 # ──────────────────────────────────────────────
-if __name__ == "__main__":
+async def health(request):
+    return web.Response(text="✅ Raja Rani Bot chal raha hai! | @nexushubxd")
+
+async def run_web():
+    server = web.Application()
+    server.router.add_get("/", health)
+    runner = web.AppRunner(server)
+    await runner.setup()
+    port = int(os.getenv("PORT", 8080))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    log.info(f"🌐 Health server port {port} pe chal raha hai")
+
+# ──────────────────────────────────────────────
+#  Main entry
+# ──────────────────────────────────────────────
+async def main():
     db_init()
     log.info("🚀 Bot start ho raha hai...")
-    app.run()
+    await run_web()
+    await app.start()
+    log.info("✅ Bot ready! Messages sun raha hai...")
+    await idle()
+
+if __name__ == "__main__":
