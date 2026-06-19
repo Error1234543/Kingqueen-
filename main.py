@@ -157,26 +157,28 @@ def join_kb():
 # ═══════════════════════════════════════
 #  /start
 # ═══════════════════════════════════════
+
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    # Note: Escaped '.', '-', '!', and others for MarkdownV2
     text = (
         f"👋 *Assalam o Alaikum, {user.first_name}\\!*\n\n"
         f"🎮 Main hoon *Raja Rani Chor Sipahi Bot\\!*\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"*Kaise khelen?*\n"
-        f"1️⃣ Mujhe apne group mein add karo\n"
-        f"2️⃣ `/startgame` likho\n"
-        f"3️⃣ 4 players `/join` karen\n"
-        f"4️⃣ Khel shuru\\!\n\n"
+        f"*Kaise khelen\\?*\n"
+        f"1\\. Mujhe apne group mein add karo\n"
+        f"2\\. `/startgame` likho\n"
+        f"3\\. 4 players `/join` karen\n"
+        f"4\\. Khel shuru\\!\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"*Roles & Points:*\n"
+        f"*Roles & Points\\:*\n"
         f"👑 Raja → *1000 pts*\n"
         f"👸 Rani → *500 pts*\n"
         f"👮 Sipahi → *300 pts* _\\(sahi pakde toh\\)_\n"
         f"🦹 Chor → *0 pts* _\\(pakda jaye toh\\)_\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📢 {CHANNEL_LINK}\n"
-        f"👤 Owner: {OWNER}"
+        f"📢 {CHANNEL_LINK.replace('.', '\\.')}\n"
+        f"👤 Owner\\: {OWNER.replace('.', '\\.')}"
     )
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Group mein Add Karo", url=f"https://t.me/Sonicdmbot?startgroup=true")],
@@ -185,6 +187,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ])
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2,
                                     reply_markup=kb, disable_web_page_preview=True)
+
 
 # ═══════════════════════════════════════
 #  /help
