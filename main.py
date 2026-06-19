@@ -160,7 +160,11 @@ def join_kb():
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    # Note: Escaped '.', '-', '!', and others for MarkdownV2
+    
+    # Pre-process the variables to handle backslashes safely outside the f-string
+    escaped_channel = CHANNEL_LINK.replace('.', '\\.')
+    escaped_owner = OWNER.replace('.', '\\.')
+    
     text = (
         f"👋 *Assalam o Alaikum, {user.first_name}\\!*\n\n"
         f"🎮 Main hoon *Raja Rani Chor Sipahi Bot\\!*\n\n"
@@ -177,16 +181,23 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"👮 Sipahi → *300 pts* _\\(sahi pakde toh\\)_\n"
         f"🦹 Chor → *0 pts* _\\(pakda jaye toh\\)_\n\n"
         f"━━━━━━━━━━━━━━━━━━━━\n"
-        f"📢 {CHANNEL_LINK.replace('.', '\\.')}\n"
-        f"👤 Owner\\: {OWNER.replace('.', '\\.')}"
+        f"📢 {escaped_channel}\n"
+        f"👤 Owner\\: {escaped_owner}"
     )
+    
     kb = InlineKeyboardMarkup([
         [InlineKeyboardButton("➕ Group mein Add Karo", url=f"https://t.me/Sonicdmbot?startgroup=true")],
         [InlineKeyboardButton("📢 Channel Join Karo", url=CHANNEL_LINK)],
         [InlineKeyboardButton("❓ Help", callback_data="show_help")],
     ])
-    await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN_V2,
-                                    reply_markup=kb, disable_web_page_preview=True)
+    
+    await update.message.reply_text(
+        text, 
+        parse_mode=ParseMode.MARKDOWN_V2,
+        reply_markup=kb, 
+        disable_web_page_preview=True
+    )
+
 
 
 # ═══════════════════════════════════════
