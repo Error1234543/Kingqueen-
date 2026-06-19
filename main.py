@@ -243,6 +243,7 @@ async def cmd_startgame(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
         reply_markup=mode_kb()
     )
+
 # ─── Mode Selection ────────────────────────────
 async def cb_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cb   = update.callback_query
@@ -355,13 +356,16 @@ async def _do_join(cid, user, ctx, update):
 
     if count >= 4:
         await _start_round(cid, ctx)
-
 # ─── Game Round ───────────────────────────────
 async def _start_round(cid, ctx):
     g = games[cid]
-    g["phase"]  = "guessing"
-    g["round"] += 1
-    g["roles"]  = {}
+    g["phase"]    = "guessing"
+    g["round"]   += 1
+    g["roles"]    = {}
+    g["raja_id"]  = None
+    g["sipahi_id"]= None
+    g["chor_id"]  = None
+    g["guess_msg_id"] = None
 
     players  = g["players"][:4]
     shuffled = players[:]
@@ -431,9 +435,12 @@ async def _start_round(cid, ctx):
                 pass
             await ctx.bot.send_message(cid,
                 f"⏰ <b>Time Out!</b> Sipahi ne jawab nahi diya!\n"
-                f"Ye round skip — agla round shuru ho raha hai...",
+                f"Is round mein kisi ko points nahi mile — agla round shuru hoga!",
                 parse_mode=ParseMode.HTML)
-            await _next_round(cid, ctx, awards={})
+            if cid in games:
+                games[cid]["phase"] = "waiting"
+                await asyncio.sleep(2)
+                await _start_round(cid, ctx)
 
     asyncio.create_task(_timeout())
 
@@ -541,6 +548,8 @@ async def _resolve_round(cid, ctx, guessed_uid):
 
 # ─── Next Round or End ────────────────────────
 async def _next_round(cid, ctx, awards):
+    if cid not in games:
+        return
     g = games[cid]
 
     # Save DB scores for real players
@@ -552,17 +561,26 @@ async def _next_round(cid, ctx, awards):
         await _end_game(cid, ctx)
         return
 
-    g["phase"] = "next"
+    g["phase"] = "waiting"
     remaining  = TOTAL_ROUNDS - g["round"]
 
     await asyncio.sleep(3)
+
+    if cid not in games:
+        return
+
     await ctx.bot.send_message(
         cid,
-        f"🔄 <b>Agla Round {g['round']+1}/{TOTAL_ROUNDS} shuru ho raha hai...</b>\n"
-        f"⏳ {remaining} rounds baaki hain!",
+        f"🔄 <b>Round {g['round']+1}/{TOTAL_ROUNDS} shuru ho raha hai...</b>\n"
+        f"⏳ <b>{remaining}</b> rounds baaki hain!\n\n"
+        f"<b>Scores abhi tak:</b>\n{scoreboard_text(g)}",
         parse_mode=ParseMode.HTML,
     )
     await asyncio.sleep(2)
+
+    if cid not in games:
+        return
+
     await _start_round(cid, ctx)
 
 # ─── End Game ────────────────────────────────
