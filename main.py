@@ -310,6 +310,18 @@ async def cmd_startgame(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     g["join_msg_id"] = sent.message_id
 
 # ═══════════════════════════════════════
+#  /reset - Force stop the game
+# ═══════════════════════════════════════
+async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat_id = update.effective_chat.id
+    if chat_id in games:
+        games.pop(chat_id, None)
+        await update.message.reply_text("🔄 Game ko force reset kar diya gaya hai! Ab aap `/startgame` kar sakte hain.")
+    else:
+        await update.message.reply_text("⚠️ Koi active game nahi chal rahi hai.")
+
+
+# ═══════════════════════════════════════
 #  /join
 # ═══════════════════════════════════════
 async def cmd_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -598,6 +610,7 @@ def main():
     app.add_handler(CommandHandler("join",        cmd_join))
     app.add_handler(CommandHandler("leaderboard", cmd_leaderboard))
     app.add_handler(CommandHandler("myscore",     cmd_myscore))
+app.add_handler(CommandHandler("reset", cmd_reset))
 
     app.add_handler(CallbackQueryHandler(cb_check_join, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(cb_show_help,  pattern="^show_help$"))
