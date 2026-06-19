@@ -243,7 +243,6 @@ async def cmd_startgame(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode=ParseMode.HTML,
         reply_markup=mode_kb()
     )
-
 # ─── Mode Selection ────────────────────────────
 async def cb_mode(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     cb   = update.callback_query
@@ -642,10 +641,7 @@ async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Ye sirf groups mein kaam karta hai!")
         return
 
-    member = await ctx.bot.get_chat_member(chat.id, user.id)
-    if member.status.name not in ("ADMINISTRATOR", "CREATOR"):
-        await update.message.reply_text("❌ Sirf admins /reset kar sakte hain!")
-        return
+    # Anyone can reset — no admin check needed
 
     cid = chat.id
     if cid in games:
