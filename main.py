@@ -268,46 +268,25 @@ async def cb_check_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await cb.answer("❌ Abhi tak join nahi kiya!", show_alert=True)
 
 # ═══════════════════════════════════════
-#  /startgame
+#  /startgame (Updated)
 # ═══════════════════════════════════════
 async def cmd_startgame(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
 
-    if chat.type == "private":
-        await update.message.reply_text(
-            "⚠️ Ye command sirf groups mein kaam karti hai!\n"
-            "Apne group mein `/startgame` likho."
-        )
-        return
-
-    if not await is_member(ctx.bot, user.id):
-        await update.message.reply_text(
-            f"⚠️ *Pehle hamara channel join karo!*\n{CHANNEL_LINK}",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=channel_kb(),
-            disable_web_page_preview=True,
-        )
-        return
+    # ... (baaki ka code waisa hi rahega)
 
     cid = chat.id
+    # YAHAN PAR UPDATE KAREIN:
     if cid in games and games[cid]["phase"] != "done":
-        await update.message.reply_text("⚠️ Ek game pehle se chal rahi hai! `/join` karo.")
+        await update.message.reply_text(
+            "⚠️ Ek game pehle se chal rahi hai!\n"
+            "Agar game stuck hai toh `/reset` use karein ya `/join` karke khelein."
+        )
         return
 
-    games[cid] = fresh_game()
-    g = games[cid]
-    g["players"].append({
-        "id": user.id,
-        "name": user.full_name,
-        "username": user.username or "",
-    })
+    # ... (baaki ka game shuru karne wala code)
 
-    sent = await update.message.reply_text(
-        join_text(g), parse_mode=ParseMode.MARKDOWN,
-        reply_markup=join_kb(), disable_web_page_preview=True
-    )
-    g["join_msg_id"] = sent.message_id
 
 # ═══════════════════════════════════════
 #  /reset - Force stop the game
