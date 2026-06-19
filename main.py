@@ -56,7 +56,25 @@ def fresh_game():
         "join_msg_id":  None,
         "guess_msg_id": None,
         "timeout_job":  None,
+        "started_by":   None,
     }
+
+async def _force_reset(cid, ctx, notify=True):
+    """Forcefully clears a stuck/active game for a chat. Cancels any pending timeout task."""
+    g = games.pop(cid, None)
+    if g and g.get("timeout_job"):
+        g["timeout_job"].cancel()
+    if notify:
+        try:
+            await ctx.bot.send_message(
+                cid,
+                "🔄 *Game Reset Ho Gaya\\!*\n"
+                "Purani game clear kar di gayi hai\\.\n"
+                "Naya game shuru karne ke liye `/startgame` likho\\! 🎮",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception:
+            pass
 
 # --- SQLite ---
 DB = "scores.db"
@@ -127,7 +145,7 @@ async def is_member(bot, user_id):
 def channel_kb():
     return InlineKeyboardMarkup([[
         InlineKeyboardButton("📢 Channel Join Karo", url=CHANNEL_LINK),
-        InlineKeyboardButton("✅ Joined!", callback_data="check_join"),
+        InlineKeyboardButton("✅ Maine Join Kar Liya!", callback_data="check_join"),
     ]])
 
 def mention(name, uid):
@@ -151,7 +169,7 @@ def join_text(game):
 
 def join_kb():
     return InlineKeyboardMarkup([[
-        InlineKeyboardButton("✋ Join Game", callback_data="join_game")
+        InlineKeyboardButton("🙋‍♂️ Join Game", callback_data="join_game")
     ]])
 
 # ═══════════════════════════════════════
@@ -186,9 +204,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     )
     
     kb = InlineKeyboardMarkup([
-        [InlineKeyboardButton("➕ Group mein Add Karo", url=f"https://t.me/Sonicdmbot?startgroup=true")],
+        [InlineKeyboardButton("➕ Group Mein Add Karo 🚀", url=f"https://t.me/Sonicdmbot?startgroup=true")],
         [InlineKeyboardButton("📢 Channel Join Karo", url=CHANNEL_LINK)],
-        [InlineKeyboardButton("❓ Help", callback_data="show_help")],
+        [InlineKeyboardButton("📖 Help Dekho", callback_data="show_help")],
     ])
     
     await update.message.reply_text(
@@ -210,6 +228,7 @@ async def cmd_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "*Commands:*\n"
         "🟢 /startgame — Naya game shuru karo\n"
         "✋ /join — Game mein shamil ho\n"
+        "🔄 /reset — Fasi hui game clear karo\n"
         "🏆 /leaderboard — Top 10 scores\n"
         "📊 /myscore — Apna score dekho\n"
         "❓ /help — Ye message\n\n"
@@ -246,6 +265,7 @@ async def cb_show_help(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "*Commands:*\n"
         "🟢 /startgame — Naya game shuru karo\n"
         "✋ /join — Game mein shamil ho\n"
+        "🔄 /reset — Fasi hui game clear karo\n"
         "🏆 /leaderboard — Top 10 scores\n"
         "📊 /myscore — Apna score dekho\n\n"
         "*Points:*\n"
@@ -268,43 +288,126 @@ async def cb_check_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await cb.answer("❌ Abhi tak join nahi kiya!", show_alert=True)
 
 # ═══════════════════════════════════════
-#  /startgame (Updated)
+#  /startgame
 # ═══════════════════════════════════════
 async def cmd_startgame(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat = update.effective_chat
     user = update.effective_user
 
-    # ... (baaki ka code waisa hi rahega)
-
-    cid = chat.id
-    # YAHAN PAR UPDATE KAREIN:
-    if cid in games and games[cid]["phase"] != "done":
+    if chat.type == "private":
         await update.message.reply_text(
-            "⚠️ Ek game pehle se chal rahi hai!\n"
-            "Agar game stuck hai toh `/reset` use karein ya `/join` karke khelein."
+            "⚠️ Ye command sirf groups mein kaam karti hai!\n"
+            "Apne group mein `/startgame` likho."
         )
         return
 
-    # ... (baaki ka game shuru karne wala code)
+    if not await is_member(ctx.bot, user.id):
+        await update.message.reply_text(
+            f"⚠️ *Pehle hamara channel join karo!*\n{CHANNEL_LINK}",
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=channel_kb(),
+            disable_web_page_preview=True,
+        )
+        return
 
+    cid = chat.id
+    if cid in games and games[cid]["phase"] != "done":
+        await update.message.reply_text(
+            "⚠️ *Ek game pehle se chal rahi hai\\!*\n"
+            "`/join` karke shamil ho jao\\.\n\n"
+            "_Game fas gayi lagti hai?_ Neeche reset dabao 👇",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("🔄 Reset Game", callback_data="confirm_reset")
+            ]]),
+        )
+        return
 
-# ═══════════════════════════════════════
-#  /reset - Force stop the game
-# ═══════════════════════════════════════
-async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    if chat_id in games:
-        games.pop(chat_id, None)
-        await update.message.reply_text("🔄 Game ko force reset kar diya gaya hai! Ab aap `/startgame` kar sakte hain.")
-    else:
-        await update.message.reply_text("⚠️ Koi active game nahi chal rahi hai.")
+    games[cid] = fresh_game()
+    g = games[cid]
+    g["started_by"] = user.id
+    g["players"].append({
+        "id": user.id,
+        "name": user.full_name,
+        "username": user.username or "",
+    })
 
+    sent = await update.message.reply_text(
+        join_text(g), parse_mode=ParseMode.MARKDOWN,
+        reply_markup=join_kb(), disable_web_page_preview=True
+    )
+    g["join_msg_id"] = sent.message_id
+
+    # Auto-cancel if 4 players don't join within 5 minutes — prevents a stuck "joining" game
+    async def _joining_timeout():
+        await asyncio.sleep(300)
+        if cid in games and games[cid]["phase"] == "joining":
+            games.pop(cid, None)
+            try:
+                await ctx.bot.send_message(
+                    cid,
+                    "⏰ *Game Cancel Ho Gayi\\!*\n"
+                    "5 minute mein 4 players nahi mile\\.\n"
+                    "Dobara `/startgame` karo\\! 🎮",
+                    parse_mode=ParseMode.MARKDOWN_V2,
+                )
+            except Exception:
+                pass
+
+    g["timeout_job"] = asyncio.create_task(_joining_timeout())
 
 # ═══════════════════════════════════════
 #  /join
 # ═══════════════════════════════════════
 async def cmd_join(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await _do_join(update.effective_chat.id, update.effective_user, ctx, update)
+
+# ═══════════════════════════════════════
+#  /reset — force-clears a stuck/active game
+# ═══════════════════════════════════════
+async def _can_reset(cid, user_id, ctx):
+    g = games.get(cid)
+    if g and user_id == g.get("started_by"):
+        return True
+    try:
+        member = await ctx.bot.get_chat_member(cid, user_id)
+        return member.status.name in ("ADMINISTRATOR", "CREATOR")
+    except Exception:
+        return False
+
+async def cmd_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    chat = update.effective_chat
+    user = update.effective_user
+
+    if chat.type == "private":
+        await update.message.reply_text("⚠️ Ye command sirf groups mein kaam karti hai!")
+        return
+
+    cid = chat.id
+    if cid not in games:
+        await update.message.reply_text("ℹ️ Koi active game nahi thi. `/startgame` se shuru karo! 🎮")
+        return
+
+    if not await _can_reset(cid, user.id, ctx):
+        await update.message.reply_text("❌ Sirf game shuru karne wala ya group admin hi reset kar sakta hai!")
+        return
+
+    await _force_reset(cid, ctx)
+
+async def cb_reset(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    cb  = update.callback_query
+    cid = cb.message.chat.id
+
+    if cid not in games:
+        await cb.answer("ℹ️ Koi active game nahi thi!", show_alert=True)
+        return
+
+    if not await _can_reset(cid, cb.from_user.id, ctx):
+        await cb.answer("❌ Sirf game shuru karne wala ya group admin hi reset kar sakta hai!", show_alert=True)
+        return
+
+    await cb.answer("🔄 Game reset ho gayi!")
+    await _force_reset(cid, ctx)
 
 # ═══════════════════════════════════════
 #  Join via button
@@ -360,6 +463,9 @@ async def _do_join(cid, user, ctx, update):
         pass
 
     if count >= 4:
+        job = g.get("timeout_job")
+        if job:
+            job.cancel()
         await _start_round(cid, ctx)
 
 # ═══════════════════════════════════════
@@ -369,58 +475,75 @@ async def _start_round(cid, ctx):
     g = games[cid]
     g["phase"] = "guessing"
 
-    players  = g["players"][:4]
-    shuffled = players[:]
-    random.shuffle(shuffled)
+    try:
+        players  = g["players"][:4]
+        shuffled = players[:]
+        random.shuffle(shuffled)
 
-    for p, role in zip(shuffled, ROLES):
-        g["roles"][p["id"]] = role
-        if role == "Raja":   g["raja_id"]   = p["id"]
-        if role == "Rani":   g["rani_id"]   = p["id"]
-        if role == "Sipahi": g["sipahi_id"] = p["id"]
-        if role == "Chor":   g["chor_id"]   = p["id"]
+        for p, role in zip(shuffled, ROLES):
+            g["roles"][p["id"]] = role
+            if role == "Raja":   g["raja_id"]   = p["id"]
+            if role == "Rani":   g["rani_id"]   = p["id"]
+            if role == "Sipahi": g["sipahi_id"] = p["id"]
+            if role == "Chor":   g["chor_id"]   = p["id"]
 
-    raja_p   = next(p for p in players if p["id"] == g["raja_id"])
-    sipahi_p = next(p for p in players if p["id"] == g["sipahi_id"])
-    unknown  = [p for p in players if p["id"] not in (g["raja_id"], g["sipahi_id"])]
+        raja_p   = next(p for p in players if p["id"] == g["raja_id"])
+        sipahi_p = next(p for p in players if p["id"] == g["sipahi_id"])
+        unknown  = [p for p in players if p["id"] not in (g["raja_id"], g["sipahi_id"])]
 
-    role_lines = []
-    for p in players:
-        role = g["roles"][p["id"]]
-        if role == "Raja":
-            role_lines.append(f"👑 {mention(p['name'], p['id'])} — *Raja* \\(Revealed\\!\\)")
-        else:
-            role_lines.append(f"❓ {mention(p['name'], p['id'])} — _Role Hidden_")
+        role_lines = []
+        for p in players:
+            role = g["roles"][p["id"]]
+            if role == "Raja":
+                role_lines.append(f"👑 {mention(p['name'], p['id'])} — *Raja* \\(Revealed\\!\\)")
+            else:
+                role_lines.append(f"❓ {mention(p['name'], p['id'])} — _Role Hidden_")
 
-    await ctx.bot.send_message(
-        cid,
-        f"🎭 *Roles Assign Ho Gaye\\!*\n"
-        f"{'━'*22}\n\n"
-        + "\n".join(role_lines) +
-        f"\n\n{'━'*22}\n"
-        f"👑 *Raja:* {mention(raja_p['name'], raja_p['id'])}\n\n"
-        f"👑 Raja kehte hain:\n"
-        f'_"Sipahi\\! Chor ko pakdo\\!"_ 🔍\n\n'
-        f"⏳ Sipahi ke paas *60 seconds* hain\\.\\.\\.",
-        parse_mode=ParseMode.MARKDOWN_V2,
-        disable_web_page_preview=True,
-    )
+        await ctx.bot.send_message(
+            cid,
+            f"🎭 *Roles Assign Ho Gaye\\!*\n"
+            f"{'━'*22}\n\n"
+            + "\n".join(role_lines) +
+            f"\n\n{'━'*22}\n"
+            f"👑 *Raja:* {mention(raja_p['name'], raja_p['id'])}\n\n"
+            f"👑 Raja kehte hain:\n"
+            f'_"Sipahi\\! Chor ko pakdo\\!"_ 🔍\n\n'
+            f"⏳ Sipahi ke paas *60 seconds* hain\\.\\.\\.",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            disable_web_page_preview=True,
+        )
 
-    buttons = [
-        [InlineKeyboardButton(f"🔎 {p['name']}", callback_data=f"guess_{cid}_{p['id']}")]
-        for p in unknown
-    ]
+        buttons = [
+            [InlineKeyboardButton(f"🔎 {p['name']}", callback_data=f"guess_{cid}_{p['id']}")]
+            for p in unknown
+        ]
 
-    guess_sent = await ctx.bot.send_message(
-        cid,
-        f"👮 {mention(sipahi_p['name'], sipahi_p['id'])} — *Tum Sipahi ho\\!*\n\n"
-        f"Inme se kaun *Chor* 🦹 hai?\n"
-        f"Neeche button dabao — 60 seconds hain\\!",
-        parse_mode=ParseMode.MARKDOWN_V2,
-        reply_markup=InlineKeyboardMarkup(buttons),
-        disable_web_page_preview=True,
-    )
-    g["guess_msg_id"] = guess_sent.message_id
+        guess_sent = await ctx.bot.send_message(
+            cid,
+            f"👮 {mention(sipahi_p['name'], sipahi_p['id'])} — *Tum Sipahi ho\\!*\n\n"
+            f"Inme se kaun *Chor* 🦹 hai?\n"
+            f"Neeche button dabao — 60 seconds hain\\!",
+            parse_mode=ParseMode.MARKDOWN_V2,
+            reply_markup=InlineKeyboardMarkup(buttons),
+            disable_web_page_preview=True,
+        )
+        g["guess_msg_id"] = guess_sent.message_id
+
+    except Exception as e:
+        # Anything went wrong while setting up the round — don't leave the chat stuck forever
+        log.error(f"_start_round failed for chat {cid}: {e}")
+        games.pop(cid, None)
+        try:
+            await ctx.bot.send_message(
+                cid,
+                "⚠️ *Kuch error aagaya game shuru karte waqt\\!*\n"
+                "Game cancel kar di gayi hai\\.\n"
+                "Dobara `/startgame` try karo\\! 🎮",
+                parse_mode=ParseMode.MARKDOWN_V2,
+            )
+        except Exception:
+            pass
+        return
 
     # Timeout
     async def _timeout():
@@ -441,7 +564,8 @@ async def _start_round(cid, ctx):
             )
             games.pop(cid, None)
 
-    asyncio.create_task(_timeout())
+    g["timeout_job"] = asyncio.create_task(_timeout())
+
 
 # ═══════════════════════════════════════
 #  Sipahi Guess
@@ -469,6 +593,10 @@ async def cb_guess(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await cb.answer("✅ Jawab darz ho gaya!")
     g["phase"] = "done"
 
+    job = g.get("timeout_job")
+    if job:
+        job.cancel()
+
     try:
         await ctx.bot.edit_message_reply_markup(cid, g["guess_msg_id"], reply_markup=None)
     except Exception:
@@ -479,7 +607,7 @@ async def cb_guess(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chor_id  = g["chor_id"]
     correct  = (guessed_uid == chor_id)
 
-    awards = {}
+awards = {}
     for p in players:
         role = roles[p["id"]]
         if correct:
@@ -587,13 +715,14 @@ def main():
     app.add_handler(CommandHandler("help",        cmd_help))
     app.add_handler(CommandHandler("startgame",   cmd_startgame))
     app.add_handler(CommandHandler("join",        cmd_join))
-    app.add_handler(CommandHandler("reset",       cmd_reset))      # <--- Ye line add karni hai
+    app.add_handler(CommandHandler("reset",       cmd_reset))
     app.add_handler(CommandHandler("leaderboard", cmd_leaderboard))
     app.add_handler(CommandHandler("myscore",     cmd_myscore))
 
     app.add_handler(CallbackQueryHandler(cb_check_join, pattern="^check_join$"))
     app.add_handler(CallbackQueryHandler(cb_show_help,  pattern="^show_help$"))
     app.add_handler(CallbackQueryHandler(cb_join,       pattern="^join_game$"))
+    app.add_handler(CallbackQueryHandler(cb_reset,      pattern="^confirm_reset$"))
     app.add_handler(CallbackQueryHandler(cb_guess,      pattern=r"^guess_-?\d+_\d+$"))
 
     webhook_url = WEBHOOK_URL.rstrip("/")
@@ -605,3 +734,6 @@ def main():
         webhook_url=f"{webhook_url}/webhook",
         url_path="webhook",
     )
+
+if __name__ == "__main__":
+    main()
